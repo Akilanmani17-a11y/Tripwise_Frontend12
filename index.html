@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="TripWise: search cities and towns worldwide, see real photos and live weather, and build a day-by-day trip that stays saved in your browser.">
+  <title>TripWise · Find a place, plan the days</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23E14B26'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%E2%9C%B3%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="preload" as="image" href="assets/hero.webp">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="siteHeader">
+    <div class="header-inner wrap">
+      <a class="brand" href="#/" aria-label="TripWise home">
+        <span class="brand-mark" aria-hidden="true">✳</span><span class="brand-word">tripwise</span>
+      </a>
+
+      <button class="mini-search" id="miniSearch" type="button" aria-label="Search destinations">
+        <span class="mini-search-text" id="miniSearchText">Search any city or town</span>
+        <span class="mini-search-go"><i data-lucide="search"></i></span>
+      </button>
+
+      <nav class="top-nav" aria-label="Main">
+        <a href="#/" class="top-link" data-route="explore">Explore</a>
+        <a href="#/trip" class="top-link trip-link" data-route="trip">
+          <i data-lucide="map"></i> My trip <span class="count-badge" data-trip-count>0</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- EXPLORE -->
+    <section id="exploreView" class="view" aria-labelledby="heroTitle">
+      <div class="wrap">
+        <div class="hero">
+          <picture>
+            <source media="(max-width: 640px)" srcset="assets/hero-sm.webp">
+            <img src="assets/hero.webp" alt="Turquoise bay framed by green limestone cliffs with a wooden longtail boat" class="hero-img" width="2000" height="1125" fetchpriority="high">
+          </picture>
+          <div class="hero-shade" aria-hidden="true"></div>
+          <div class="hero-copy">
+            <p class="hero-kicker">Over 100,000 cities, towns and villages</p>
+            <h1 id="heroTitle">Where are you<br>going next?</h1>
+            <p class="hero-sub">Real photos, today's weather and a day-by-day plan that stays on your device.</p>
+          </div>
+
+          <form class="search" id="searchForm" role="search" autocomplete="off">
+            <div class="search-field search-where">
+              <label for="searchInput">Where</label>
+              <input id="searchInput" type="search" placeholder="Try Lisbon, Munnar or Kyoto" aria-autocomplete="list" aria-controls="suggestList" aria-expanded="false" spellcheck="false">
+              <ul class="suggest" id="suggestList" role="listbox" hidden></ul>
+            </div>
+            <div class="search-field search-type">
+              <label for="searchType">Kind of place</label>
+              <select id="searchType">
+                <option value="all">Any size</option>
+                <option value="capital">National capitals</option>
+                <option value="big">Big cities, 1M+</option>
+                <option value="mid">Cities, 100k–1M</option>
+                <option value="small">Towns & villages</option>
+              </select>
+            </div>
+            <button class="search-btn" type="submit"><i data-lucide="search"></i><span>Search</span></button>
+          </form>
+        </div>
+      </div>
+
+      <div class="cats-bar" id="catsBar">
+        <div class="wrap">
+          <div class="cats" id="cats" role="tablist" aria-label="Browse by theme"></div>
+        </div>
+      </div>
+
+      <section class="wrap results-section" aria-labelledby="resultsTitle" id="resultsSection">
+        <div class="results-head">
+          <div>
+            <h2 id="resultsTitle">Trending this season</h2>
+            <p id="resultsSub" class="muted">Places people keep coming back to.</p>
+          </div>
+          <div class="toolbar" id="toolbar">
+            <button class="pill-btn" id="openFilters" type="button"><i data-lucide="sliders-horizontal"></i> Filters <span class="filter-count" id="filterCount" hidden>0</span></button>
+            <label class="sort">
+              <span class="sr-only">Sort by</span>
+              <i data-lucide="arrow-up-down"></i>
+              <select id="sortSelect">
+                <option value="recommended">Recommended</option>
+                <option value="pop-desc">Most populous</option>
+                <option value="pop-asc">Least populous</option>
+                <option value="name">Name, A to Z</option>
+                <option value="warm">Warmest right now</option>
+                <option value="cool">Coolest right now</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="active-filters" id="activeFilters"></div>
+
+        <div class="grid" id="grid" aria-live="polite" aria-busy="false"></div>
+
+        <div class="state" id="stateEmpty" hidden>
+          <i data-lucide="map-pin-off" class="state-icon"></i>
+          <h3>Nothing matches those filters</h3>
+          <p id="stateEmptyText">Try a wider population range or a different country.</p>
+          <button class="btn btn-dark" id="clearFiltersBtn" type="button">Clear filters</button>
+        </div>
+        <div class="state" id="stateNone" hidden>
+          <i data-lucide="search-x" class="state-icon"></i>
+          <h3>We couldn't find that place</h3>
+          <p id="stateNoneText">Check the spelling, or try a nearby city.</p>
+          <div class="state-suggest" id="stateNoneSuggest"></div>
+        </div>
+        <div class="state state-error" id="stateError" hidden>
+          <i data-lucide="wifi-off" class="state-icon"></i>
+          <h3>The destination service didn't answer</h3>
+          <p id="stateErrorText">Check your connection and try again.</p>
+          <button class="btn btn-dark" id="retryBtn" type="button"><i data-lucide="rotate-cw"></i> Try again</button>
+        </div>
+      </section>
+
+      <section class="wrap collections" aria-labelledby="collTitle">
+        <div class="section-head">
+          <h2 id="collTitle">Pick a mood, not a map</h2>
+          <p class="muted">Five ways into the world, picked by the kind of trip you want.</p>
+        </div>
+        <div class="bento" id="bento"></div>
+      </section>
+
+      <section class="wrap plan-band" aria-labelledby="planTitle">
+        <div class="plan-card">
+          <img src="assets/plan.webp" alt="Traveller with an orange backpack looking over a colourful seaside village at sunset" loading="lazy" width="1100" height="825">
+          <div class="plan-copy">
+            <p class="eyebrow">Your trip, your device</p>
+            <h2 id="planTitle">Line up the stops. Set the nights. See the route.</h2>
+            <p>Save places as you browse, put them in order, and TripWise works out the dates and the distance. Nothing to sign up for. Your plan is kept in this browser, even after you close it.</p>
+            <a class="btn btn-brand" href="#/trip">Open my trip <i data-lucide="arrow-right"></i></a>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- TRIP -->
+    <section id="tripView" class="view" hidden aria-labelledby="tripTitleLabel">
+      <div class="wrap trip-wrap">
+        <div class="trip-top">
+          <div class="trip-title-block">
+            <label id="tripTitleLabel" for="tripName" class="eyebrow">My trip</label>
+            <input id="tripName" class="trip-name" maxlength="60" value="My next trip" aria-label="Trip name">
+          </div>
+          <div class="trip-actions">
+            <label class="date-field">
+              <span>Start date</span>
+              <input type="date" id="tripStart">
+            </label>
+            <button class="pill-btn" id="copyTrip" type="button"><i data-lucide="copy"></i> Copy plan</button>
+            <button class="pill-btn danger" id="clearTrip" type="button"><i data-lucide="trash-2"></i> Clear</button>
+          </div>
+        </div>
+
+        <div class="trip-stats" id="tripStats"></div>
+
+        <div class="trip-body" id="tripBody">
+          <ol class="stops" id="stops"></ol>
+          <aside class="trip-map-wrap" aria-label="Route map">
+            <div id="tripMap" class="trip-map"></div>
+          </aside>
+        </div>
+
+        <div class="trip-empty" id="tripEmpty" hidden>
+          <img src="assets/plan-sm.webp" alt="" width="366" height="244" loading="lazy">
+          <div>
+            <h2>Your trip starts with one place</h2>
+            <p class="muted">Tap the heart on any destination to save it here. You can set nights, reorder stops and add notes later.</p>
+            <a class="btn btn-brand" href="#/">Find destinations <i data-lucide="arrow-right"></i></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div>
+        <span class="brand small"><span class="brand-mark" aria-hidden="true">✳</span><span class="brand-word">tripwise</span></span>
+        <p class="muted">Find a place, plan the days.</p>
+      </div>
+      <p class="credits">Places &amp; weather: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · Photos &amp; descriptions: <a href="https://www.wikipedia.org/" target="_blank" rel="noopener">Wikipedia / Wikimedia Commons</a> · Maps: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a></p>
+    </div>
+  </footer>
+
+  <nav class="tabbar" aria-label="Main mobile">
+    <a href="#/" data-route="explore"><i data-lucide="search"></i><span>Explore</span></a>
+    <a href="#/trip" data-route="trip"><span class="tab-ico"><i data-lucide="heart"></i><span class="count-badge" data-trip-count>0</span></span><span>My trip</span></a>
+  </nav>
+
+  <!-- DETAILS -->
+  <dialog class="sheet detail" id="detail" aria-labelledby="dName">
+    <div class="detail-scroll" id="detailScroll">
+      <div class="detail-hero" id="dHero">
+        <div class="detail-hero-btns">
+          <button class="round-btn" id="dClose" type="button" aria-label="Close details"><i data-lucide="x"></i></button>
+          <button class="round-btn" id="dShare" type="button" aria-label="Copy link to this place"><i data-lucide="link"></i></button>
+        </div>
+        <span class="detail-credit" id="dCredit"></span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-main">
+          <div class="detail-title">
+            <h2 id="dName"></h2>
+            <p class="detail-loc" id="dLoc"></p>
+          </div>
+          <div class="detail-chips" id="dChips"></div>
+          <section class="d-sec">
+            <h3>About</h3>
+            <div id="dAbout" class="d-about"></div>
+          </section>
+          <section class="d-sec">
+            <h3>Next 7 days</h3>
+            <div id="dWeather" class="forecast"></div>
+          </section>
+          <section class="d-sec">
+            <h3>Around here</h3>
+            <div id="dNearby" class="nearby"></div>
+          </section>
+          <section class="d-sec">
+            <h3>Where it is</h3>
+            <div id="dMap" class="d-map"></div>
+          </section>
+        </div>
+        <aside class="book-card" id="bookCard">
+          <div class="book-now" id="dNow"></div>
+          <div class="nights">
+            <span>Nights</span>
+            <div class="stepper">
+              <button type="button" id="nMinus" aria-label="One night fewer"><i data-lucide="minus"></i></button>
+              <output id="nVal">2</output>
+              <button type="button" id="nPlus" aria-label="One night more"><i data-lucide="plus"></i></button>
+            </div>
+          </div>
+          <button class="btn btn-brand btn-block" id="dAdd" type="button"></button>
+          <p class="book-note" id="dNote">Saved in this browser. No account needed.</p>
+          <a class="book-link" id="dGmaps" target="_blank" rel="noopener"><i data-lucide="navigation"></i> Open in Google Maps</a>
+        </aside>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- FILTERS -->
+  <dialog class="sheet filters" id="filters" aria-labelledby="fTitle">
+    <form method="dialog" class="filters-form" id="filtersForm">
+      <header class="filters-head">
+        <button class="round-btn plain" value="cancel" aria-label="Close filters"><i data-lucide="x"></i></button>
+        <h2 id="fTitle">Filters</h2>
+        <span></span>
+      </header>
+      <div class="filters-body">
+        <fieldset>
+          <legend>Kind of place</legend>
+          <div class="seg" data-filter="type">
+            <label><input type="radio" name="type" value="all" checked><span>Any</span></label>
+            <label><input type="radio" name="type" value="capital"><span>National capitals</span></label>
+            <label><input type="radio" name="type" value="big"><span>1M+ people</span></label>
+            <label><input type="radio" name="type" value="mid"><span>100k–1M</span></label>
+            <label><input type="radio" name="type" value="small"><span>Under 100k</span></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Weather right now</legend>
+          <div class="seg" data-filter="climate">
+            <label><input type="radio" name="climate" value="any" checked><span>Any</span></label>
+            <label><input type="radio" name="climate" value="warm"><span><i data-lucide="sun"></i> Warm, 22°+</span></label>
+            <label><input type="radio" name="climate" value="mild"><span><i data-lucide="cloud-sun"></i> Mild, 12–22°</span></label>
+            <label><input type="radio" name="climate" value="cold"><span><i data-lucide="snowflake"></i> Cold, under 12°</span></label>
+            <label><input type="radio" name="climate" value="dry"><span><i data-lucide="umbrella-off"></i> Dry skies</span></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend><label for="fCountry">Country</label></legend>
+          <select id="fCountry" name="country" class="select-lg"><option value="all">All countries</option></select>
+        </fieldset>
+      </div>
+      <footer class="filters-foot">
+        <button type="button" class="link-btn" id="fReset">Clear all</button>
+        <button type="button" class="btn btn-dark" id="fApply">Show places</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="app.js"></script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  const DEFAULT_LINE_HEIGHT = 16;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  const PICK_CAPABILITIES = ["pick"];
+  const PICK_CHAIN_LENGTH = 4;
+  const PICK_MAX_TEXT_CHARS = 120;
+  const PICK_MAX_HTML_CHARS = 300;
+
+  function truncate(value, maxChars) {
+    return value.length > maxChars ? value.slice(0, maxChars - 1) + "…" : value;
+  }
+
+  function isPickableElement(element) {
+    return (
+      element instanceof Element &&
+      element !== document.documentElement &&
+      element !== document.body
+    );
+  }
+
+  function resolvePickTarget(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const element = document.elementFromPoint(x, y);
+    return isPickableElement(element) ? element.closest("svg") || element : null;
+  }
+
+  function pickLabel(element) {
+    if (element.id) return element.localName + "#" + element.id;
+    return [element.localName].concat(Array.from(element.classList).slice(0, 2)).join(".");
+  }
+
+  // Only attributes that help find the element in source. data-* values and URL
+  // query strings or fragments can carry tokens.
+  const PICK_ATTRIBUTES = new Set([
+    "id",
+    "class",
+    "name",
+    "type",
+    "role",
+    "alt",
+    "aria-label",
+    "href",
+    "src",
+  ]);
+
+  function pickAttributeValue(attribute) {
+    return attribute.name === "href" || attribute.name === "src"
+      ? attribute.value.split(/[?#]/)[0]
+      : attribute.value;
+  }
+
+  function describePickElement(element) {
+    const chain = [];
+    for (
+      let current = element;
+      isPickableElement(current) && chain.length < PICK_CHAIN_LENGTH;
+      current = current.parentElement
+    ) {
+      chain.unshift(current);
+    }
+    const attributes = Array.from(element.attributes)
+      .filter((attribute) => PICK_ATTRIBUTES.has(attribute.name))
+      .map((attribute) => ` ${attribute.name}="${pickAttributeValue(attribute).replace(/"/g, "&quot;")}"`)
+      .join("");
+    const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+    return {
+      chain: chain.map(pickLabel),
+      html: truncate(`<${element.localName}${attributes}>`, PICK_MAX_HTML_CHARS),
+      text: text ? truncate(text, PICK_MAX_TEXT_CHARS) : undefined,
+    };
+  }
+
+  // Hover asks once per frame, and innerText on a large section forces layout,
+  // so only the rect is re-read while the pointer stays on the same element.
+  // Clicks ask for fresh details since the page may have changed the element.
+  let lastPick = null;
+
+  function describePickTarget(element, fresh) {
+    if (fresh || lastPick?.element !== element) {
+      lastPick = { element, details: describePickElement(element) };
+    }
+    const rect = element.getBoundingClientRect();
+    return {
+      rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      ...lastPick.details,
+    };
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      capabilities: PICK_CAPABILITIES,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_PICK") {
+      const element = resolvePickTarget(event.data.x, event.data.y);
+      postToTrustedTop({
+        type: "INLINE_EDIT_PICK_RESULT",
+        seq: event.data.seq,
+        target: element ? describePickTarget(element, event.data.fresh === true) : null,
+      });
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_BY") {
+      const { deltaX, deltaY, deltaMode } = event.data;
+      if (!scrollForwarding || !Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+      if (deltaMode !== 0 && deltaMode !== 1 && deltaMode !== 2) return;
+      const lineHeight =
+        parseFloat(getComputedStyle(document.documentElement).lineHeight) || DEFAULT_LINE_HEIGHT;
+      const scaleX = deltaMode === 1 ? lineHeight : deltaMode === 2 ? window.innerWidth : 1;
+      const scaleY = deltaMode === 1 ? lineHeight : deltaMode === 2 ? window.innerHeight : 1;
+      // The selection overlay receives the wheel event instead of this iframe.
+      // Instant scrolling preserves trackpad deltas even on smooth-scroll sites.
+      window.scrollBy({ left: deltaX * scaleX, top: deltaY * scaleY, behavior: "instant" });
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
